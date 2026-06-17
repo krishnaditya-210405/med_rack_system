@@ -1,0 +1,11 @@
+flask
+flask-socketio
+opencv-python
+easyocr
+rapidfuzz
+pyserial
+ultralytics
+numpy
+pillow
+torch
+torchvision
