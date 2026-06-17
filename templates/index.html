@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AI-Powered Medicine Rack Management System. Real-time inventory tracking, EasyOCR prescription scanning, YOLO classification, and ESP32 hardware UART integration.">
+    <title>AI Medicine Rack Control Center</title>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <!-- Socket.io client library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Dashboard Header -->
+        <header>
+            <div class="logo-section">
+                <h1 id="main-title">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;">
+                        <path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"></path>
+                        <path d="m8.5 8.5 7 7"></path>
+                    </svg>
+                    MedRack Control Center
+                </h1>
+                <p>Raspberry Pi 5 & ESP32 Intelligent IoT Dispenser</p>
+            </div>
+            <div class="hardware-connection">
+                <div id="connection-badge" class="sys-badge {% if is_simulated %}simulated{% endif %}">
+                    <span id="conn-dot" style="width: 8px; height: 8px; border-radius: 50%; background-color: {% if is_simulated %}#f59e0b{% else %}#10b981{% endif %}; display: inline-block;"></span>
+                    <span id="conn-status-text">
+                        {% if is_simulated %}Virtual Serial Simulator{% else %}ESP32 connected (UART){% endif %}
+                    </span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Dashboard Layout -->
+        <div class="dashboard-grid">
+            
+            <!-- Left Panel (Inventory & Scanner controls) -->
+            <main class="left-panel">
+                
+                <!-- 4-Compartment Grid -->
+                <section class="glass-card" style="margin-bottom: 1.5rem;">
+                    <h2>
+                        <span>Medicine Rack Layout</span>
+                        <span id="low-stock-global-badge" style="font-size: 0.75rem; font-weight: normal;"></span>
+                    </h2>
+                    
+                    <div class="compartment-grid" id="rack-container">
+                        {% for item in inventory %}
+                        <div class="comp-card {% if item.low_stock_alert %}low-stock{% endif %}" id="comp-card-{{ item.compartment_number }}" data-compartment="{{ item.compartment_number }}">
+                            <div class="comp-header">
+                                <span class="comp-num">Compartment {{ item.compartment_number }}</span>
+                                <span class="lock-status" id="lock-badge-{{ item.compartment_number }}">CLOSED</span>
+                            </div>
+                            
+                            <div class="med-info">
+                                <h3 id="med-name-{{ item.compartment_number }}">{{ item.medicine_name }}</h3>
+                                <p>ID: <span id="med-id-{{ item.compartment_number }}">{{ item.medicine_id }}</span> | Threshold: {{ item.reorder_threshold }}</p>
+                            </div>
+
+                            <div class="stock-info">
+                                <div class="stock-value">
+                                    <span class="num" id="med-qty-{{ item.compartment_number }}">{{ item.quantity }}</span>
+                                    <span class="lbl">In Stock</span>
+                                </div>
+                                <div class="comp-actions">
+                                    <button class="btn btn-open" id="btn-open-{{ item.compartment_number }}" onclick="triggerOpen({{ item.compartment_number }})">Open</button>
+                                    <button class="btn btn-close" id="btn-close-{{ item.compartment_number }}" onclick="triggerClose({{ item.compartment_number }})">Close</button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Direct Adjustment Action -->
+                    <button class="btn btn-adjust" id="btn-manual-adjust-trigger" onclick="openAdjustmentModal()">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
+                            <path d="M12 5v14M5 12h14"/>
+                        </svg>
+                        Manual Stock Transaction
+                    </button>
+                </section>
+
+                <!-- Vision Pipeline Scanner -->
+                <section class="glass-card">
+                    <h2>AI Recognition Scanning Panel</h2>
+                    
+                    <div class="upload-area" id="drop-area" onclick="document.getElementById('file-input').click()">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                        </svg>
+                        <p>Drag & Drop prescription or package image here</p>
+                        <span>or click to select file from device</span>
+                        <input type="file" id="file-input" accept="image/*" style="display: none;" onchange="handleFileSelect(this)">
+                    </div>
+
+                    <button class="btn btn-primary" id="camera-scan-btn" onclick="triggerCameraScan()">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
+                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                            <circle cx="12" cy="13" r="4"/>
+                        </svg>
+                        Scan Package via USB Camera
+                    </button>
+
+                    <!-- Scan results details -->
+                    <div class="recognition-preview" id="scan-preview-panel">
+                        <h4 style="margin: 1rem 0 0.5rem 0; font-size: 0.9rem; text-transform: uppercase; color: var(--text-secondary);">Latest Scan Result</h4>
+                        <div class="preview-grid">
+                            <img id="preview-image" src="" alt="Captured Image">
+                            <div class="preview-details">
+                                <div class="preview-title" id="preview-matched-med">Match Pending</div>
+                                <div class="preview-meta" id="preview-matched-method">Method: -</div>
+                                <div class="preview-meta" id="preview-matched-conf">Confidence: -</div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </main>
+
+            <!-- Right Panel (System logs & recent tables) -->
+            <aside class="right-panel">
+                
+                <!-- Real-Time Trace Log Stream -->
+                <section class="glass-card" style="margin-bottom: 1.5rem;">
+                    <h2>Live System Logs</h2>
+                    <div class="logs-window" id="logs-container">
+                        <div class="log-entry info">
+                            <span class="log-timestamp">[System Initialized]</span>
+                            <span class="log-text">Welcome to MedRack control hub. Subscribing to event logs...</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Transactions Log -->
+                <section class="glass-card" style="margin-bottom: 1.5rem;">
+                    <h2>Recent Stock Updates</h2>
+                    <div class="table-container">
+                        <table class="med-table" id="transactions-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Medicine</th>
+                                    <th>Comp</th>
+                                    <th>Action</th>
+                                    <th>Qty</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for tx in transactions %}
+                                <tr>
+                                    <td>{{ tx.timestamp.split(' ')[1] if ' ' in tx.timestamp else tx.timestamp }}</td>
+                                    <td>{{ tx.medicine_name }}</td>
+                                    <td>{{ tx.compartment_number }}</td>
+                                    <td>
+                                        <span class="badge-action {{ tx.action.lower() }}">{{ tx.action }}</span>
+                                    </td>
+                                    <td>{{ tx.quantity }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- AI Detections Log -->
+                <section class="glass-card">
+                    <h2>Recent Vision Detections</h2>
+                    <div class="table-container">
+                        <table class="med-table" id="detections-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Method</th>
+                                    <th>Matched Medicine</th>
+                                    <th>Confidence</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for det in detections %}
+                                <tr>
+                                    <td>{{ det.timestamp.split(' ')[1] if ' ' in det.timestamp else det.timestamp }}</td>
+                                    <td>{{ det.recognition_method }}</td>
+                                    <td>{{ det.medicine_name }}</td>
+                                    <td>{{ "{:.1%}".format(det.confidence) if det.confidence else '0%' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </aside>
+        </div>
+    </div>
+
+    <!-- MODAL 1: Manual Stock Transaction -->
+    <div class="modal-overlay" id="adjust-modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeAdjustmentModal()">&times;</button>
+            <h3 style="margin-bottom: 1.5rem;">Manual Stock Transaction</h3>
+            
+            <div class="form-group">
+                <label for="adjust-compartment">Select Target Compartment</label>
+                <select class="form-control" id="adjust-compartment">
+                    {% for item in inventory %}
+                    <option value="{{ item.compartment_number }}">Compartment {{ item.compartment_number }} ({{ item.medicine_name }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="adjust-action">Transaction Action Type</label>
+                <select class="form-control" id="adjust-action">
+                    <option value="RESTOCK">RESTOCK (Add stock)</option>
+                    <option value="RETRIEVE">RETRIEVE (Dispense / Remove stock)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="adjust-amount">Quantity</label>
+                <input type="number" class="form-control" id="adjust-amount" value="1" min="1">
+            </div>
+
+            <button class="btn btn-primary" id="btn-submit-adjust" style="width: 100%; justify-content: center; padding: 0.75rem;" onclick="submitAdjustment()">
+                Record Transaction
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL 2: Human Verification Fallback Modal (Low AI Confidence) -->
+    <div class="modal-overlay" id="verify-modal">
+        <div class="modal-content pulse" style="border-color: var(--accent-orange);">
+            <button class="modal-close" onclick="closeVerificationModal()">&times;</button>
+            <h3 style="margin-bottom: 0.5rem; color: #f59e0b; display: flex; align-items: center; gap: 0.5rem;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                Human Verification Required
+            </h3>
+            <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.25rem;">
+                The AI classification pipeline returned a low confidence score. Please confirm the medicine name below.
+            </p>
+
+            <div style="text-align: center; margin-bottom: 1.25rem;">
+                <img id="verify-modal-img" src="" alt="Failed Match" style="width: 100%; max-height: 180px; object-fit: contain; border-radius: 12px; border: 1px solid var(--border-color); background: #000;">
+            </div>
+
+            <input type="hidden" id="verify-session-id">
+
+            <div class="form-group">
+                <label for="verify-compartment">Identify Correct Medicine / Compartment</label>
+                <select class="form-control" id="verify-compartment">
+                    {% for item in inventory %}
+                    <option value="{{ item.compartment_number }}">Compartment {{ item.compartment_number }} ({{ item.medicine_name }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="verify-action">Transaction Action Type</label>
+                <select class="form-control" id="verify-action">
+                    <option value="RESTOCK">RESTOCK (Add stock)</option>
+                    <option value="RETRIEVE">RETRIEVE (Dispense / Remove stock)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="verify-amount">Quantity</label>
+                <input type="number" class="form-control" id="verify-amount" value="1" min="1">
+            </div>
+
+            <button class="btn btn-primary" id="btn-submit-verify" style="width: 100%; justify-content: center; padding: 0.75rem; background: var(--accent-orange); box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);" onclick="submitVerification()">
+                Confirm Override & Log Transaction
+            </button>
+        </div>
+    </div>
+
+    <!-- Custom Client-Side JS -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
