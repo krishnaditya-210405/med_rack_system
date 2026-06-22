@@ -21,7 +21,6 @@ except ImportError:
     logging.warning("rapidfuzz package not found. Will run fuzzy matching in simulation mode.")
 
 from database import log_detection, get_inventory_status, get_db_connection
-from detect import mock_detect_package
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -184,25 +183,7 @@ class RecognitionManager:
                 "image_path": image_path
             }
 
-        # 3. Fallback to YOLOv8 Package Classification
-        logger.info("OCR failed or confidence low. Falling back to YOLOv8 custom classification...")
-        yolo_med, yolo_conf = mock_detect_package(image_path)
-        
-        if yolo_med and yolo_med != "Unknown" and yolo_conf >= 0.75:
-            # Success via YOLO
-            log_detection("YOLO", yolo_med, yolo_conf, self.db_path)
-            comp_num = self._get_compartment_for_med(yolo_med)
-            logger.info(f"YOLO Pipeline Success: {yolo_med} assigned to Compartment {comp_num}")
-            return {
-                "status": "SUCCESS",
-                "recognition_method": "YOLO",
-                "medicine_name": yolo_med,
-                "confidence": yolo_conf,
-                "compartment_number": comp_num,
-                "image_path": image_path
-            }
-
-        # 4. Fallback to Human Verification
+        # 3. Fallback to Human Verification
         logger.warning("AI fallback pipeline failed to identify package with confidence. Flagging for Human Verification.")
         log_detection("MANUAL_VERIFICATION", "Pending Review", 0.0, self.db_path)
         

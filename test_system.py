@@ -5,7 +5,6 @@ import shutil
 import database
 from communication import SerialCommunicator
 from recognition_manager import RecognitionManager
-from detect import mock_detect_package
 
 class TestMedRackSystem(unittest.TestCase):
     def setUp(self):
@@ -83,16 +82,7 @@ class TestMedRackSystem(unittest.TestCase):
         status = comm.get_status()
         self.assertIn("STATUS_OK", status)
 
-    def test_yolo_placeholder(self):
-        """Verify fallback YOLO custom classifier simulation returns correct mappings."""
-        # Test string parsing simulations
-        med, conf = mock_detect_package("temp_image_paracetamol.jpg")
-        self.assertEqual(med, "Paracetamol")
-        self.assertGreaterEqual(conf, 0.75)
-        
-        med_unk, conf_unk = mock_detect_package("image_without_known_names.jpg")
-        # Should simulate random or fallback values
-        self.assertIn(med_unk, ["Paracetamol", "Amoxicillin", "Cetirizine", "Pantoprazole", "Unknown"])
+
 
     def test_recognition_manager_pipeline(self):
         """Test entire vision fallback routing pipeline logic."""

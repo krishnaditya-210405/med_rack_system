@@ -52,7 +52,7 @@
                         <div class="comp-card {% if item.low_stock_alert %}low-stock{% endif %}" id="comp-card-{{ item.compartment_number }}" data-compartment="{{ item.compartment_number }}">
                             <div class="comp-header">
                                 <span class="comp-num">Compartment {{ item.compartment_number }}</span>
-                                <span class="lock-status" id="lock-badge-{{ item.compartment_number }}">CLOSED</span>
+                                <span class="lock-status" id="lock-badge-{{ item.compartment_number }}">OFF</span>
                             </div>
                             
                             <div class="med-info">
@@ -66,8 +66,8 @@
                                     <span class="lbl">In Stock</span>
                                 </div>
                                 <div class="comp-actions">
-                                    <button class="btn btn-open" id="btn-open-{{ item.compartment_number }}" onclick="triggerOpen({{ item.compartment_number }})">Open</button>
-                                    <button class="btn btn-close" id="btn-close-{{ item.compartment_number }}" onclick="triggerClose({{ item.compartment_number }})">Close</button>
+                                    <button class="btn btn-open" id="btn-open-{{ item.compartment_number }}" onclick="triggerOpen({{ item.compartment_number }})">LED ON</button>
+                                    <button class="btn btn-close" id="btn-close-{{ item.compartment_number }}" onclick="triggerClose({{ item.compartment_number }})">LED OFF</button>
                                 </div>
                             </div>
                         </div>

@@ -68,20 +68,20 @@ def open_compartment(compartment):
     if compartment < 1 or compartment > 4:
         return jsonify({"status": "ERROR", "message": "Invalid compartment number"}), 400
         
-    logger.info(f"API request to OPEN Compartment {compartment}")
+    logger.info(f"API request to turn ON Compartment {compartment} LED")
     success = serial_comm.open_compartment(compartment)
     
     if success:
         # Update WebSockets log and front-end status
         socketio.emit('log_message', {
             'type': 'info',
-            'message': f"Compartment {compartment} lock OPENED successfully."
+            'message': f"Compartment {compartment} LED turned ON successfully."
         })
         socketio.emit('hardware_update', {
             'compartment': compartment,
-            'state': 'OPEN'
+            'state': 'ON'
         })
-        return jsonify({"status": "SUCCESS", "message": f"Compartment {compartment} opened"})
+        return jsonify({"status": "SUCCESS", "message": f"Compartment {compartment} LED turned ON"})
     else:
         socketio.emit('log_message', {
             'type': 'error',
@@ -95,19 +95,19 @@ def close_compartment(compartment):
     if compartment < 1 or compartment > 4:
         return jsonify({"status": "ERROR", "message": "Invalid compartment number"}), 400
         
-    logger.info(f"API request to CLOSE Compartment {compartment}")
+    logger.info(f"API request to turn OFF Compartment {compartment} LED")
     success = serial_comm.close_compartment(compartment)
     
     if success:
         socketio.emit('log_message', {
             'type': 'info',
-            'message': f"Compartment {compartment} lock CLOSED successfully."
+            'message': f"Compartment {compartment} LED turned OFF successfully."
         })
         socketio.emit('hardware_update', {
             'compartment': compartment,
-            'state': 'CLOSED'
+            'state': 'OFF'
         })
-        return jsonify({"status": "SUCCESS", "message": f"Compartment {compartment} closed"})
+        return jsonify({"status": "SUCCESS", "message": f"Compartment {compartment} LED turned OFF"})
     else:
         socketio.emit('log_message', {
             'type': 'error',

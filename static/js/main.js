@@ -20,7 +20,7 @@ socket.on('hardware_update', function(data) {
     const badge = document.getElementById(`lock-badge-${data.compartment}`);
     if (badge) {
         badge.textContent = data.state;
-        if (data.state === 'OPEN') {
+        if (data.state === 'ON' || data.state === 'OPEN') {
             badge.classList.add('open');
         } else {
             badge.classList.remove('open');
@@ -143,7 +143,7 @@ function updateDetectionsTable(detections) {
 
 // Open a compartment lock
 async function triggerOpen(compartment) {
-    appendLog(`Requesting open command for Compartment ${compartment}...`, 'info');
+    appendLog(`Requesting LED ON command for Compartment ${compartment}...`, 'info');
     try {
         const response = await fetch(`/api/open/${compartment}`, { method: 'POST' });
         const data = await response.json();
@@ -151,13 +151,13 @@ async function triggerOpen(compartment) {
             alert(`Error: ${data.message}`);
         }
     } catch (err) {
-        appendLog(`Network error sending OPEN command: ${err}`, 'error');
+        appendLog(`Network error sending LED ON command: ${err}`, 'error');
     }
 }
 
 // Close a compartment lock
 async function triggerClose(compartment) {
-    appendLog(`Requesting close command for Compartment ${compartment}...`, 'info');
+    appendLog(`Requesting LED OFF command for Compartment ${compartment}...`, 'info');
     try {
         const response = await fetch(`/api/close/${compartment}`, { method: 'POST' });
         const data = await response.json();
@@ -165,7 +165,7 @@ async function triggerClose(compartment) {
             alert(`Error: ${data.message}`);
         }
     } catch (err) {
-        appendLog(`Network error sending CLOSE command: ${err}`, 'error');
+        appendLog(`Network error sending LED OFF command: ${err}`, 'error');
     }
 }
 
@@ -322,7 +322,7 @@ function displayScanResult(result) {
         document.getElementById('preview-matched-conf').textContent = `Confidence: ${(result.confidence * 100).toFixed(1)}%`;
         
         // Auto open compartment
-        appendLog(`AI pipeline matched medicine '${result.medicine_name}' in Compartment ${result.compartment_number} (${(result.confidence * 100).toFixed(0)}% conf). Triggering latch release...`, 'success');
+        appendLog(`AI pipeline matched medicine '${result.medicine_name}' in Compartment ${result.compartment_number} (${(result.confidence * 100).toFixed(0)}% conf). Turning ON indicator LED...`, 'success');
         triggerOpen(result.compartment_number);
     } else {
         document.getElementById('preview-matched-med').textContent = "Verification Required";
